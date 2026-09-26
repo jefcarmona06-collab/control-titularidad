@@ -197,7 +197,6 @@
                 
                 if (fetchedData && fetchedData.length > 0) {
                     data = fetchedData.map(d => ({
-                        id: String(d.id),
                         piso: d.piso,
                         apto: d.apto,
                         acreditado: d.acreditado === true || d.acreditado === "true"
@@ -207,7 +206,7 @@
                     for (let f = PISOS; f >= 1; f--) {
                         for (let a = 1; a <= APTOS_POR_PISO; a++) {
                             data.push({ 
-                                id: `${f}${a}`, piso: f, apto: a, 
+                                piso: f, apto: a, 
                                 acreditado: false
                             });
                         }
@@ -224,7 +223,7 @@
                     data = [];
                     for (let f = PISOS; f >= 1; f--) {
                         for (let a = 1; a <= APTOS_POR_PISO; a++) {
-                            data.push({ id: `${f}${a}`, piso: f, apto: a, acreditado: false });
+                            data.push({ piso: f, apto: a, acreditado: false });
                         }
                     }
                 }
@@ -234,8 +233,8 @@
             }
         }
 
-        async function toggleAcreditado(id) {
-            const index = data.findIndex(item => String(item.id) === String(id));
+        async function toggleAcreditado(piso, apto) {
+            const index = data.findIndex(item => String(item.piso) === String(piso) && String(item.apto) === String(apto));
             if (index === -1) return;
             const estadoAnterior = data[index].acreditado;
             
@@ -248,7 +247,8 @@
                 await fetch(SCRIPT_URL, {
                     method: 'POST',
                     body: JSON.stringify({ 
-                        id: id, 
+                        piso: piso,
+                        apto: apto,
                         acreditado: data[index].acreditado
                     })
                 });
@@ -373,7 +373,7 @@
                                 <span class="text-[9px] font-bold uppercase ${textClass} max-w-[55px] leading-tight">${statusText}</span>
                             </div>
                             <div class="flex items-center gap-1.5">
-                                <button onclick="toggleAcreditado('${apt.id}')" class="flex flex-col items-center justify-center w-[60px] h-9 rounded border transition-all ${isAcreditado ? 'bg-emerald-100 border-emerald-300 text-emerald-700 shadow-inner' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50 shadow-sm'}">
+                                <button onclick="toggleAcreditado(${apt.piso}, ${apt.apto})" class="flex flex-col items-center justify-center w-[60px] h-9 rounded border transition-all ${isAcreditado ? 'bg-emerald-100 border-emerald-300 text-emerald-700 shadow-inner' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50 shadow-sm'}">
                                     <i class="fas fa-file-signature text-[12px] mb-0.5"></i>
                                 </button>
                             </div>
