@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Residencias DAN Torre A - Titularidad</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .donut-chart { transform: rotate(-90deg); }
+        .donut-segment { transition: stroke-dasharray 0.8s ease-in-out; }
+        .tab-active { border-bottom: 3px solid #059669; color: #047857; font-weight: 700; background-color: #ecfdf5; }
+        
+        @media print { 
+            @page { size: letter; margin: 1cm; }
+            body { background-color: white !important; }
+            .no-print { display: none !important; }
+            .shadow-sm { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
+            .print-compact { padding: 0.5rem !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+    </style>
+</head>
+<body class="text-slate-900 min-h-screen relative">
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden items-center justify-center">
+        <div class="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center">
+            <i class="fas fa-circle-notch fa-spin text-4xl text-emerald-600 mb-4"></i>
+            <p class="text-sm font-bold text-slate-700 uppercase tracking-widest" id="loadingText">Sincronizando con la Nube...</p>
+        </div>
+    </div>
+
+    <!-- Área Principal de Captura -->
+    <div id="capture-area" class="max-w-4xl mx-auto p-4 md:p-6 pb-20">
+        
+        <!-- Encabezado -->
+        <header class="flex justify-between items-center mb-6 border-b-2 border-slate-200 pb-4">
+            <div class="flex items-center gap-4">
+                <div class="w-16 h-16 shrink-0 bg-emerald-50 rounded-xl p-2 border-2 border-emerald-200 flex items-center justify-center">
+                    <i class="fas fa-file-signature text-3xl text-emerald-500"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black tracking-tight text-slate-800 leading-none">RESIDENCIAS DAN TORRE A</h1>
+                    <p class="text-emerald-600 text-xs font-black uppercase tracking-[0.2em] mt-1">Control de Titularidad</p>
+                </div>
+            </div>
+            <div class="text-right no-print flex gap-2">
+                <button onclick="initData()" class="bg-slate-50 text-slate-700 border border-slate-200 px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-100 shadow-sm transition-all" title="Actualizar datos desde la nube">
+                    <i class="fas fa-sync-alt mr-2"></i>Actualizar
+                </button>
+                <button onclick="window.print()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-emerald-700 shadow-md transition-all">
+                    <i class="fas fa-file-pdf mr-2"></i>Exportar PDF
+                </button>
+            </div>
+        </header>
+
+        <!-- Navegación de 3 Pestañas -->
+        <div class="flex border-b border-slate-200 mb-6 no-print bg-white rounded-t-xl overflow-hidden shadow-sm">
+            <button onclick="switchTab('resumen')" id="tab-resumen" class="flex-1 py-3 text-[10px] md:text-xs uppercase tracking-widest tab-active">Global</button>
+            <button onclick="switchTab('detalle')" id="tab-detalle" class="flex-1 py-3 text-[10px] md:text-xs uppercase tracking-widest text-slate-500 font-bold hover:bg-slate-50 border-l border-slate-100">Detalle</button>
+            <button onclick="switchTab('reporte')" id="tab-reporte" class="flex-1 py-3 text-[10px] md:text-xs uppercase tracking-widest text-slate-500 font-bold hover:bg-slate-50 border-l border-slate-100">Reportes</button>
+        </div>
+
+        <!-- Dashboard Centralizado -->
+        <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm mb-6">
+            <div class="flex flex-col md:flex-row items-center gap-8">
+                <!-- Gráfica Protagonista -->
+                <div class="relative w-44 h-44 shrink-0">
+                    <svg viewBox="0 0 36 36" class="donut-chart w-full h-full">
+                        <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="#f1f5f9" stroke-width="4.5"></circle>
+                        <circle id="donutCircle" cx="18" cy="18" r="15.915" fill="transparent" stroke="#10b981" stroke-width="4.5" stroke-dasharray="0 100" class="donut-segment"></circle>
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span id="percentLabel" class="text-3xl font-black text-slate-800">0%</span>
+                        <span class="text-[9px] font-black text-slate-400 uppercase tracking-tighter text-center leading-tight mt-1">Titulares<br>Acreditados</span>
+                    </div>
+                </div>
+
+                <!-- Métricas Clave -->
+                <div class="flex-grow w-full text-center md:text-left">
+                    <div class="grid grid-cols-2 gap-6">
+                        <div>
+                            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Total Acreditados</p>
+                            <h2 id="totalAcreditados" class="text-4xl font-black text-slate-900 leading-none">0</h2>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-black text-slate-400 uppercase mb-1">Progreso Apartamentos</p>
+                            <div class="flex items-baseline gap-2 flex-wrap">
+                                <p id="unidadesCompletas" class="text-2xl font-black text-emerald-600 leading-none">0 / 72</p>
+                                <p id="unidadesPendientes" class="text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded" style="display: none;">0 Aptos. pendientes</p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Barra de Progreso -->
+                    <div class="mt-6">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <span class="text-[10px] font-black text-slate-500 uppercase">Avance General del Proyecto</span>
+                            <span id="metaText" class="text-[10px] font-black text-slate-900 uppercase underline decoration-emerald-500">Meta: 72 Apartamentos</span>
+                        </div>
+                        <div class="h-3 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                            <div id="progressBar" class="h-full bg-emerald-500 transition-all duration-1000 shadow-lg" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VISTA 1: RESUMEN GLOBAL -->
+        <div id="view-resumen" class="block">
+            <div id="buildingGraphicContainer" class="mb-6"></div>
+            
+            <div class="mt-4 border-t-2 border-dashed border-slate-200 pt-4 text-center">
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">
+                    Reporte interno de gestión de titularidad de apartamentos.<br>
+                    El objetivo es lograr el 100% de los apartamentos con titularidad acreditada.
+                </p>
+            </div>
+        </div>
+
+        <!-- VISTA 2: DETALLE OPERATIVO -->
+        <div id="view-detalle" class="hidden">
+            <div id="buildingGrid" class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4"></div>
+        </div>
+
+        <!-- VISTA 3: REPORTES -->
+        <div id="view-reporte" class="hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <!-- Columna 1: Acreditados -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4 border-b border-slate-100 pb-3">
+                        <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center"><i class="fas fa-check-circle text-sm"></i></div>
+                        <div>
+                            <h3 class="font-black text-slate-800 leading-tight">Titulares Acreditados</h3>
+                            <p class="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Documentación al día</p>
+                        </div>
+                    </div>
+                    <div id="reporteAcreditados" class="space-y-2">
+                        <!-- Llenado con JS -->
+                    </div>
+                </div>
+
+                <!-- Columna 2: Pendientes -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <div class="flex items-center gap-3 mb-4 border-b border-slate-100 pb-3">
+                        <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center"><i class="fas fa-times text-sm"></i></div>
+                        <div>
+                            <h3 class="font-black text-slate-800 leading-tight">Pendientes Total</h3>
+                            <p class="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Agrupados por piso</p>
+                        </div>
+                    </div>
+                    <div id="reportePendientes" class="space-y-3">
+                        <!-- Llenado con JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // NOTA: Recuerda reemplazar esta URL con la NUEVA que te arroje Google Apps Script para este sistema de Titularidad
+        // De lo contrario, modificará la misma base de datos de las inspecciones de gas.
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzDBGu4-avplJjMmavTDU2P6d2MndH9UcC9ntSGUDiajZS8R8eWjur6sOWMx3X9Uq_aLQ/exec';
+        
+        const PISOS = 18;
+        const APTOS_POR_PISO = 4;
+        const TOTAL_APTOS = PISOS * APTOS_POR_PISO;
+        
+        let data = [];
+
+        function showLoading(show, text = "Sincronizando con la Nube...") {
+            const overlay = document.getElementById('loadingOverlay');
+            document.getElementById('loadingText').innerText = text;
+            if (show) {
+                overlay.classList.remove('hidden');
+                overlay.classList.add('flex');
+            } else {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+            }
+        }
+        
+        async function initData() {
+            showLoading(true);
+            try {
+                // Comentar temporalmente la petición si SCRIPT_URL no es válido para poder visualizar el diseño localmente
+                if (SCRIPT_URL.includes("URL_DE_TU_NUEVO_SCRIPT")) {
+                    throw new Error("URL no configurada");
+                }
+
+                const response = await fetch(SCRIPT_URL);
+                const fetchedData = await response.json();
+                
+                if (fetchedData && fetchedData.length > 0) {
+                    data = fetchedData.map(d => ({
+                        id: String(d.id),
+                        piso: d.piso,
+                        apto: d.apto,
+                        acreditado: d.acreditado === true || d.acreditado === "true"
+                    }));
+                } else {
+                    data = [];
+                    for (let f = PISOS; f >= 1; f--) {
+                        for (let a = 1; a <= APTOS_POR_PISO; a++) {
+                            data.push({ 
+                                id: `${f}${a}`, piso: f, apto: a, 
+                                acreditado: false
+                            });
+                        }
+                    }
+                    await fetch(SCRIPT_URL, {
+                        method: 'POST',
+                        body: JSON.stringify(data)
+                    });
+                }
+            } catch (error) {
+                console.error("Error al cargar datos:", error);
+                // alert("Alerta: Configura la URL del nuevo Apps Script. Se usará una versión de prueba temporal.");
+                if (data.length === 0) {
+                    data = [];
+                    for (let f = PISOS; f >= 1; f--) {
+                        for (let a = 1; a <= APTOS_POR_PISO; a++) {
+                            data.push({ id: `${f}${a}`, piso: f, apto: a, acreditado: false });
+                        }
+                    }
+                }
+            } finally {
+                showLoading(false);
+                render();
+            }
+        }
+
+        async function toggleAcreditado(id) {
+            const index = data.findIndex(item => String(item.id) === String(id));
+            if (index === -1) return;
+            const estadoAnterior = data[index].acreditado;
+            
+            data[index].acreditado = !estadoAnterior;
+            render();
+            
+            if (SCRIPT_URL.includes("URL_DE_TU_NUEVO_SCRIPT")) return;
+
+            try {
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ 
+                        id: id, 
+                        acreditado: data[index].acreditado
+                    })
+                });
+            } catch (error) {
+                data[index].acreditado = estadoAnterior;
+                render();
+                alert("Hubo un error al guardar tu cambio en la nube.");
+            }
+        }
+
+        function switchTab(tab) {
+            const tabs = ['resumen', 'detalle', 'reporte'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                const view = document.getElementById(`view-${t}`);
+                
+                if (t === tab) {
+                    btn.className = "flex-1 py-3 text-[10px] md:text-xs uppercase tracking-widest tab-active";
+                    view.classList.replace('hidden', 'block');
+                } else {
+                    btn.className = "flex-1 py-3 text-[10px] md:text-xs uppercase tracking-widest text-slate-500 font-bold hover:bg-slate-50 border-l border-r border-slate-100";
+                    view.classList.replace('block', 'hidden');
+                }
+            });
+        }
+
+        function render() {
+            const grid = document.getElementById('buildingGrid');
+            const graphicContainer = document.getElementById('buildingGraphicContainer');
+            grid.innerHTML = '';
+            graphicContainer.innerHTML = '';
+
+            const metaTotal = TOTAL_APTOS;
+            const acreditados = data.filter(d => d.acreditado).length;
+            const porcentaje = ((acreditados / metaTotal) * 100).toFixed(1); 
+            const aptosPendientes = data.filter(d => !d.acreditado).length;
+
+            document.getElementById('totalAcreditados').innerText = acreditados;
+            document.getElementById('unidadesCompletas').innerText = `${acreditados} / ${TOTAL_APTOS}`;
+            
+            const elPendientes = document.getElementById('unidadesPendientes');
+            if (elPendientes) {
+                elPendientes.innerText = `${aptosPendientes} Apto${aptosPendientes !== 1 ? 's' : ''}. pendientes`;
+                elPendientes.style.display = aptosPendientes > 0 ? 'inline-block' : 'none';
+            }
+            
+            document.getElementById('percentLabel').innerText = `${Math.round(porcentaje)}%`;
+            document.getElementById('progressBar').style.width = `${porcentaje}%`;
+            document.getElementById('donutCircle').setAttribute('stroke-dasharray', `${porcentaje} 100`);
+
+            let buildingHtml = `<div class="max-w-xl mx-auto relative shadow-xl rounded-t-2xl">
+                <!-- Techo del edificio -->
+                <div class="h-6 bg-slate-700 rounded-t-2xl w-full border-b-4 border-slate-800 flex justify-center items-end relative overflow-hidden">
+                    <div class="w-1/3 h-3 bg-slate-500 rounded-t-sm"></div>
+                    <div class="absolute right-4 bottom-0 w-2 h-4 bg-slate-400"></div>
+                </div>
+                <div class="flex flex-col border-x-4 border-slate-700 bg-white">
+            `;
+
+            for (let f = PISOS; f >= 1; f--) {
+                const aptosDePiso = data.filter(d => d.piso === f).sort((a,b) => a.apto - b.apto);
+                
+                // --- Generación Vista Edificio (Global) ---
+                let aptosBuildingHtml = '';
+                aptosDePiso.forEach(apt => {
+                    const isAcreditado = apt.acreditado;
+                    
+                    let bgC = 'bg-slate-100 border-slate-200';
+                    let txtC = 'text-slate-400';
+                    let icC = 'fas fa-minus text-slate-300';
+                    
+                    if (isAcreditado) {
+                        bgC = 'bg-emerald-50 border-emerald-200';
+                        txtC = 'text-emerald-700';
+                        icC = 'fas fa-check text-emerald-500';
+                    }
+                    
+                    aptosBuildingHtml += `
+                        <div title="Apto ${f}${apt.apto}" class="flex-1 flex flex-col items-center justify-center py-1.5 rounded-sm border ${bgC} shadow-sm transition-all hover:scale-105 cursor-pointer" onclick="switchTab('detalle')">
+                            <span class="text-[9px] font-black ${txtC}">${apt.apto}</span>
+                            <i class="${icC} text-[11px] mt-0.5"></i>
+                        </div>
+                    `;
+                });
+
+                buildingHtml += `
+                    <div class="flex items-stretch border-b border-slate-200 last:border-b-4 last:border-slate-700 hover:bg-slate-50 transition-colors">
+                        <!-- Estructura Piso Izquierda -->
+                        <div class="w-16 shrink-0 bg-slate-100 border-r border-slate-300 flex flex-col items-center justify-center py-1.5 relative shadow-inner">
+                            <span class="text-[8px] font-black text-slate-400 leading-tight">PISO</span>
+                            <span class="text-sm font-black text-slate-700 leading-none">${f}</span>
+                        </div>
+                        <!-- Apartamentos Derecha -->
+                        <div class="flex-grow flex items-center justify-around gap-2 p-2 bg-slate-50/50">
+                            ${aptosBuildingHtml}
+                        </div>
+                    </div>
+                `;
+
+                // --- Generación Lista Detalles (Operativo) ---
+                const floorHeader = document.createElement('div');
+                floorHeader.className = 'col-span-1 mb-2';
+                let listHtml = `<div class="flex items-center mb-1 px-1"><span class="text-[9px] font-black bg-slate-200 px-2 py-0.5 rounded">PISO ${f}</span></div><div class="space-y-1">`;
+                
+                aptosDePiso.forEach(apt => {
+                    const isAcreditado = apt.acreditado;
+                    
+                    let bgClass = 'bg-white border-slate-100 hover:bg-slate-50';
+                    let textClass = 'text-slate-400';
+                    let statusText = 'Sin Acreditar';
+                    
+                    if (isAcreditado) {
+                        bgClass = 'bg-emerald-50 border-emerald-300 hover:bg-emerald-100';
+                        textClass = 'text-emerald-800';
+                        statusText = 'Acreditado';
+                    }
+
+                    listHtml += `
+                        <div class="flex items-center justify-between p-2 rounded border transition-all ${bgClass}">
+                            <div class="flex items-center gap-2">
+                                <div class="w-7 h-7 rounded flex items-center justify-center font-black text-xs ${isAcreditado ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-400'}">${f}${apt.apto}</div>
+                                <span class="text-[9px] font-bold uppercase ${textClass} max-w-[55px] leading-tight">${statusText}</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <button onclick="toggleAcreditado('${apt.id}')" class="flex flex-col items-center justify-center w-[60px] h-9 rounded border transition-all ${isAcreditado ? 'bg-emerald-100 border-emerald-300 text-emerald-700 shadow-inner' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50 shadow-sm'}">
+                                    <i class="fas fa-file-signature text-[12px] mb-0.5"></i>
+                                </button>
+                            </div>
+                        </div>`;
+                });
+                floorHeader.innerHTML = listHtml + '</div>';
+                grid.appendChild(floorHeader);
+            }
+
+            buildingHtml += `
+                </div>
+                <!-- Planta Baja / Base -->
+                <div class="h-4 bg-slate-700 w-full relative">
+                    <div class="absolute -bottom-2 -left-2 -right-2 h-2 bg-slate-800 rounded-b"></div>
+                </div>
+            </div>
+            <!-- Leyenda -->
+            <div class="flex justify-center gap-4 mt-6">
+                <div class="flex items-center gap-1.5"><i class="fas fa-check text-emerald-500 text-xs"></i> <span class="text-[9px] font-bold text-slate-500 uppercase">Acreditado</span></div>
+                <div class="flex items-center gap-1.5"><i class="fas fa-minus text-slate-300 text-xs"></i> <span class="text-[9px] font-bold text-slate-500 uppercase">Pendiente</span></div>
+            </div>
+            `;
+            graphicContainer.innerHTML = buildingHtml;
+
+            // --- Lógica de la Pestaña de Reportes ---
+            const repAcreditados = document.getElementById('reporteAcreditados');
+            const repPendientes = document.getElementById('reportePendientes');
+            
+            if (repAcreditados) repAcreditados.innerHTML = '';
+            if (repPendientes) repPendientes.innerHTML = '';
+
+            // Llenar Reporte de Acreditados
+            const listaAcreditados = data.filter(d => d.acreditado);
+            if (repAcreditados) {
+                if (listaAcreditados.length === 0) {
+                    repAcreditados.innerHTML = `<p class="text-xs text-slate-400 font-bold text-center py-6">Aún no hay titulares acreditados.</p>`;
+                } else {
+                    listaAcreditados.forEach(apt => {
+                        repAcreditados.innerHTML += `
+                            <div class="flex justify-between items-center bg-emerald-50 p-2.5 rounded border border-emerald-100">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[10px] font-black bg-emerald-200 text-emerald-800 px-2 py-1 rounded">Apto ${apt.piso}${apt.apto}</span>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-[10px] font-bold text-emerald-600"><i class="fas fa-check mr-1"></i>Acreditado</p>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+            }
+
+            // Llenar Reporte de Pendientes agrupados por piso
+            const listaPendientes = data.filter(d => !d.acreditado);
+            if (repPendientes) {
+                if (listaPendientes.length === 0) {
+                    repPendientes.innerHTML = `<p class="text-xs text-slate-400 font-bold text-center py-6">¡Todos los apartamentos están acreditados!</p>`;
+                } else {
+                    for (let f = PISOS; f >= 1; f--) {
+                        const pendientesEnPiso = listaPendientes.filter(d => d.piso === f).sort((a,b) => a.apto - b.apto);
+                        if (pendientesEnPiso.length > 0) {
+                            const aptosStr = pendientesEnPiso.map(a => `${f}${a.apto}`).join(", ");
+                            repPendientes.innerHTML += `
+                                <div class="bg-white border border-slate-100 rounded p-2.5">
+                                    <div class="flex justify-between items-center mb-1.5">
+                                        <span class="text-[10px] font-black text-slate-700 bg-slate-100 px-2 py-0.5 rounded">Piso ${f}</span>
+                                        <span class="text-[9px] font-bold text-slate-400">${pendientesEnPiso.length} Apto${pendientesEnPiso.length !== 1 ? 's' : ''}</span>
+                                    </div>
+                                    <p class="text-[11px] font-bold text-slate-500 pl-1">Aptos: <span class="text-slate-700 font-black">${aptosStr}</span></p>
+                                </div>
+                            `;
+                        }
+                    }
+                }
+            }
+        }
+        
+        initData();
+    </script>
+</body>
+</html>
